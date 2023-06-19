@@ -16,7 +16,6 @@ def sample_episode(space, agent, eps):
     while not terminate:
         curr, dealer, ace = state
         action = agent.get_action(state, space.Q, eps)
-        space.N[curr, dealer, ace, action] += 1
         nextState, reward, terminate, _, _ = space.env.step(action)
         episode.append((state, action, reward))
         state = nextState
@@ -44,16 +43,35 @@ def monte_carlo_update_value(space, episode, gamma):
 
 
 # %%
+def td_0_update_value(space, episode, gamma, lr):
+    states, actions, rewards = zip(*(episode))
+
+    for i in range(len(episode)):
+        curr, dealer, ace = states[i]
+
+        next_value = 0
+        if i < len(episode) - 1:
+            next_curr, next_dealer, next_ace = states[i + 1]
+            next_value = space.Q[next_curr, next_dealer, next_ace, actions[i + 1]]
+
+        space.Q[curr, dealer, ace, actions[i]] += lr * (
+            (rewards[i] + gamma * next_value) - space.Q[curr, dealer, ace, actions[i]]
+        )
+
+
+# %%
 space = Environment("Blackjack-v1")
 agent = Agent(space.env)
 
-gamma = 0.5
+lr = 0.5
+gamma = 0.9
 num_iterations = 100000
 
 # %%
 for iter in range(10, num_iterations + 1):
     print("iteration", iter)
     episode = sample_episode(space, agent, eps=1 / log10(iter))
+    # td_0_update_value(space, episode, gamma, lr)
     monte_carlo_update_value(space, episode, gamma)
 
 # %%
