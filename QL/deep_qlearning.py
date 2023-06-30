@@ -1,28 +1,41 @@
 import gymnasium as gym
 import numpy as np
 import random
-from math import inf
+import torch
+from torch import nn, optim
 
 
-def Q(state, action, W, state_dim):
-    return np.dot(state, W[action * state_dim : (action + 1) * state_dim])
+class DQN(nn.Module):
+    def __init__(self, state_dim, action_size):
+        super(DQN, self).__init__()
+
+        hidden_size = 32
+        self.inp = nn.Sequential(
+            nn.Linear(state_dim, hidden_size),
+            nn.ReLU(),
+        )
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size, action_size),
+        )
+
+    def forward(self, x):
+        h = self.inp(x)
+        Q = self.out(h)
+        return Q
 
 
-def max_Q(state, W, action_count, state_dim):
-    max_val = 0
-    max_a = 0
-    for a in range(action_count):
-        val = Q(state, a, W, state_dim)
-        if val > max_val:
-            max_val = val
-            max_a = a
+def max_Q(state, net):
+    with torch.no_grad():
+        Qs = net(state)
+        max_a = int(np.argmax(Qs))
+        max_val = Qs[max_a]
     return max_val, max_a
 
 
-env = gym.make("CartPole-v1")
+env = gym.make("CartPole-v1", render_mode="human")
 
-lr = 0.1  # learning rate
-bs = 32  # batch size
+lr = 0.001  # learning rate
+bs = 64  # batch size
 eps = 0.2  # for epsilon-greedy selection
 gamma = 0.9  # discount factor
 an = 2  # number of actions
@@ -32,10 +45,14 @@ T = 20000  # max timesteps
 
 
 D = []
-W = np.random.normal(0, 0.1, (sf * an,))  # State features stacked twice for two actions
+net = DQN(sf, an)
+optimizer = optim.Adam(net.parameters(), lr)
+
 
 for episode in range(M):
     st, _ = env.reset()
+    st = torch.from_numpy(st)
+
     for t in range(T):
         # Step 1: Select action at
         p = random.random()
@@ -43,10 +60,11 @@ for episode in range(M):
         if p < eps:
             at = random.randint(0, 1)
         else:
-            _, at = max_Q(st, W, an, sf)
+            _, at = max_Q(st, net)
 
         # Step 2: Execute action at in emulator and observe reward rt and state st
         st1, rt, ter, _, _ = env.step(at)
+        st1 = torch.from_numpy(st1)
 
         # Step 3: Store transition in D
         D.append((st, at, rt, st1, ter))
@@ -56,15 +74,18 @@ for episode in range(M):
 
         # Step 5: Gradient descent
         for s, a, r, s1, tm in B:
+            optimizer.zero_grad()
             # Set y
             y = r
             if not tm:
-                qm, _ = max_Q(s1, W, an, sf)
-                y += gamma * qm
+                with torch.no_grad():
+                    qm, _ = max_Q(s1, net)
+                    y += gamma * qm
 
             # Perform gradient descent step
-            dW = -2 * (y - Q(s, a, W, sf)) * s
-            W[a * sf : (a + 1) * sf] -= lr * dW
+            loss = (y - net(s)[a]) ** 2
+            loss.backward()
+            optimizer.step()
 
         # Step 6: Terminate if necessary, other set next state
         if ter:
@@ -73,5 +94,3 @@ for episode in range(M):
             st = st1
 
     print(f"Episode {episode} complete")
-
-print(f"Weights {W}")
