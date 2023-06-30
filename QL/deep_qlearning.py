@@ -9,10 +9,18 @@ class DQN(nn.Module):
     def __init__(self, state_dim, action_size):
         super(DQN, self).__init__()
 
-        hidden_size = 32
+        hidden_size = 16
         self.inp = nn.Sequential(
             nn.Linear(state_dim, hidden_size),
-            nn.ReLU(),
+            nn.PReLU(),
+        )
+        self.h1 = torch.nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.PReLU(),
+        )
+        self.h2 = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.PReLU(),
         )
         self.out = nn.Sequential(
             nn.Linear(hidden_size, action_size),
@@ -20,6 +28,8 @@ class DQN(nn.Module):
 
     def forward(self, x):
         h = self.inp(x)
+        h = self.h1(h)
+        h = self.h2(h)
         Q = self.out(h)
         return Q
 
