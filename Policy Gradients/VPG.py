@@ -61,7 +61,7 @@ policy = DQN(sf, 16, an)
 p_optim = optim.Adam(policy.parameters(), lr)
 
 
-for iter in range(I):
+for k in range(I):
     # Step 1: Collect step of trajectories by running policy
     D = []
     for e in range(M):
@@ -70,7 +70,7 @@ for iter in range(I):
         st = torch.from_numpy(st)
         for t in range(T):
             with torch.no_grad():
-                at = net.action(st)
+                at = policy.action(st)
             st1, rt, ter, _, _ = env.step(at)
             st1 = torch.from_numpy(st1)
             ep.append([st, at, rt])
@@ -78,9 +78,17 @@ for iter in range(I):
                 break
             else:
                 st = st1
-        g = 0
+
+        # Step 2+3: Compute rewards to go and advantage estimates
+        G = 0
         for t in range(len(ep) - 1, -1, -1):
-            ep[t][2] += g
-            g = ep[t][2] * gamma
+            # Compute rewards to go
+            ep[t][2] += G
+            G = ep[t][2] * gamma
+
+            # Compute advantage estimate
+            with torch.no_grad():
+                A = G - value(ep[t][0])
+            ep[t].append(A)
 
         D.extend(ep)
