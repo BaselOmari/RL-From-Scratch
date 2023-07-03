@@ -92,3 +92,13 @@ for k in range(I):
             ep[t].append(A)
 
         D.extend(ep)
+
+    # Step 4: Estimate policy gradient
+    p_optim.zero_grad()
+    gk = 0
+    for s, act, r, Adv in D:
+        gk += Adv * log(policy(s)[act])
+    gk /= len(D)
+    gk.backward()
+    p_optim.step()
+
