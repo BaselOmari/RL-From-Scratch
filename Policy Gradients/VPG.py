@@ -1,38 +1,40 @@
 import gymnasium as gym
-import numpy as np
-import random
 import torch
-import torch.nn.functional as F
+from numpy import log
 from torch import nn, optim
 
 
-class DQN(nn.Module):
-    def __init__(self, state_dim, action_size):
-        super(DQN, self).__init__()
+class Net(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(Net, self).__init__()
 
-        hidden_size = 16
         self.inp = nn.Sequential(
-            nn.Linear(state_dim, hidden_size),
+            nn.Linear(input_dim, hidden_dim),
             nn.PReLU(),
         )
         self.h1 = torch.nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.PReLU(),
         )
         self.h2 = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.PReLU(),
         )
         self.out = nn.Sequential(
-            nn.Linear(hidden_size, action_size),
+            nn.Linear(hidden_dim, output_dim),
         )
 
     def forward(self, x):
         h = self.inp(x)
         h = self.h1(h)
         h = self.h2(h)
-        Q = self.out(h)
-        return Q
+        Z = self.out(h)
+        return Z
+
+
+class DQN(Net):
+    def __init__(self, state_dim, hidden_dim, action_dim):
+        super(DQN, self).__init__(state_dim, hidden_dim, action_dim)
 
     def action(self, x):
         A = self.forward(x)
@@ -47,13 +49,16 @@ eps = 0.2  # for epsilon-greedy selection
 gamma = 0.9  # discount factor
 an = 2  # number of actions
 sf = 4  # number of state features
-I = 25
+epch = 100
+I = 25 # iteration count
 M = 100  # episode count
 T = 2000  # max timesteps
 
+value = Net(sf, 16, 1)
+v_optim = optim.Adam(value.parameters(), lr)
 
-net = DQN(sf, an)
-optimizer = optim.Adam(net.parameters(), lr)
+policy = DQN(sf, 16, an)
+p_optim = optim.Adam(policy.parameters(), lr)
 
 
 for iter in range(I):
