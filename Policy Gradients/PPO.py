@@ -48,8 +48,7 @@ class PI(Net):
         return log_act
 
 
-envNonGUI = gym.make("CartPole-v1")
-envGUI = gym.make("CartPole-v1", render_mode="human")
+env = gym.make("CartPole-v1", render_mode="human")
 
 lr = 0.005  #  learning rate
 bs = 64  # batch size
@@ -72,9 +71,6 @@ v_optim = optim.Adam(value.parameters(), lr)
 
 for k in range(I):
     print("Iteration", k)
-    env = envNonGUI
-    if k > 10:
-        env = envGUI
     # Step 1: Collect step of trajectories by running policy
     with torch.no_grad():
         D_st = []
