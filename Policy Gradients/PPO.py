@@ -58,7 +58,7 @@ gamma = 0.9  # discount factor
 an = 2  # number of actions
 sf = 4  # number of state features
 epch = 100
-I = 32  # iteration count
+I = 100  # iteration count
 M = 32  # episode count
 T = 2000  # max timesteps
 
@@ -83,7 +83,7 @@ for k in range(I):
         D_log_prob = []
         D_rt = []
 
-        for e in range(3):
+        for e in range(M):
             ep_st = []  # episode states
             ep_at = []  # episode actions
             ep_log_prob = []  # episode action log probabilities
@@ -122,3 +122,24 @@ for k in range(I):
         D_log_prob = torch.Tensor(D_log_prob)
         D_rt = torch.Tensor(D_rt)
         D_adv = D_rt - value(D_st)
+
+    # Step 4: policy and value updates
+    for e in range(epch):
+        V = value(D_st).squeeze()
+        upd_log_prob = policy.log_prob(D_st, D_at)
+
+        ratio = torch.exp(upd_log_prob - D_log_prob)
+
+        surr1 = ratio * D_adv
+        surr2 = torch.clamp(ratio, 1 - eps, 1 + eps) * D_adv
+
+        p_loss = (-torch.min(surr1, surr2)).mean()
+        v_loss = nn.MSELoss()(V, D_rt)
+
+        p_optim.zero_grad()
+        p_loss.backward(retain_graph=True)
+        p_optim.step()
+
+        v_optim.zero_grad()
+        v_loss.backward(retain_graph=True)
+        v_optim.step()
