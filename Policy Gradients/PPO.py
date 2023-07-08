@@ -22,9 +22,9 @@ class Net(nn.Module):
         )
 
     def forward(self, x):
-        h = self.inp(x)
-        h = self.h1(h)
-        Z = self.out(h)
+        h1 = self.inp(x)
+        h2 = self.h1(h1)
+        Z = self.out(h2)
         return Z
 
 
@@ -77,48 +77,48 @@ for k in range(I):
         env = envGUI
 
     # Step 1: Collect step of trajectories by running policy
-    D_st = []
-    D_at = []
-    D_log_prob = []
-    D_rt = []
+    with torch.no_grad():
+        D_st = []
+        D_at = []
+        D_log_prob = []
+        D_rt = []
 
-    for e in range(3):
-        ep_st = []  # episode states
-        ep_at = []  # episode actions
-        ep_log_prob = []  # episode action log probabilities
-        ep_rt = []  # episode rewards
+        for e in range(3):
+            ep_st = []  # episode states
+            ep_at = []  # episode actions
+            ep_log_prob = []  # episode action log probabilities
+            ep_rt = []  # episode rewards
 
-        st, _ = env.reset()
-        st = torch.from_numpy(st)
-        for t in range(T):
-            with torch.no_grad():
+            st, _ = env.reset()
+            st = torch.from_numpy(st)
+            for t in range(T):
                 at, log_at = policy.action(st)
-            st1, rt, ter, _, _ = env.step(at)
-            st1 = torch.from_numpy(st1)
+                st1, rt, ter, _, _ = env.step(at)
+                st1 = torch.from_numpy(st1)
 
-            ep_st.append(st)
-            ep_at.append(at)
-            ep_log_prob.append(log_at)
-            ep_rt.append(rt)
-            if ter:
-                break
-            else:
-                st = st1
+                ep_st.append(st)
+                ep_at.append(at)
+                ep_log_prob.append(log_at)
+                ep_rt.append(rt)
+                if ter:
+                    break
+                else:
+                    st = st1
 
-        # Step 2+3: Compute rewards to go and advantage estimates
-        G = 0
-        for t in range(len(ep_rt) - 1, -1, -1):
-            # Compute rewards to go
-            ep_rt[t] += G
-            G = ep_rt[t] * gamma
+            # Step 2+3: Compute rewards to go and advantage estimates
+            G = 0
+            for t in range(len(ep_rt) - 1, -1, -1):
+                # Compute rewards to go
+                ep_rt[t] += G
+                G = ep_rt[t] * gamma
 
-        D_st.extend(ep_st)
-        D_at.extend(ep_at)
-        D_log_prob.extend(ep_log_prob)
-        D_rt.extend(ep_rt)
+            D_st.extend(ep_st)
+            D_at.extend(ep_at)
+            D_log_prob.extend(ep_log_prob)
+            D_rt.extend(ep_rt)
 
-    D_st = torch.stack(D_st)
-    D_at = torch.Tensor(D_at)
-    D_log_prob = torch.Tensor(D_log_prob)
-    D_rt = torch.Tensor(D_rt)
-    D_adv = D_rt - value(D_st)
+        D_st = torch.stack(D_st)
+        D_at = torch.Tensor(D_at)
+        D_log_prob = torch.Tensor(D_log_prob)
+        D_rt = torch.Tensor(D_rt)
+        D_adv = D_rt - value(D_st)
