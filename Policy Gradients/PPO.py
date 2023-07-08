@@ -58,7 +58,7 @@ gamma = 0.9  # discount factor
 an = 2  # number of actions
 sf = 4  # number of state features
 epch = 100
-I = 100  # iteration count
+I = 5000  # iteration count
 M = 32  # episode count
 T = 2000  # max timesteps
 
@@ -72,10 +72,6 @@ v_optim = optim.Adam(value.parameters(), lr)
 
 for k in range(I):
     print("Iteration", k)
-    env = envNonGUI
-    if k % 4 == 0:
-        env = envGUI
-
     # Step 1: Collect step of trajectories by running policy
     with torch.no_grad():
         D_st = []
@@ -84,6 +80,9 @@ for k in range(I):
         D_rt = []
 
         for e in range(M):
+            env = envNonGUI
+            if e == 0:
+                env = envGUI
             ep_st = []  # episode states
             ep_at = []  # episode actions
             ep_log_prob = []  # episode action log probabilities
