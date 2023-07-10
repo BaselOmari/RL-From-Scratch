@@ -1,5 +1,6 @@
 import gymnasium as gym
 import torch
+import torch.nn.functional as F
 from torch import log, nn, optim
 from torch.distributions.categorical import Categorical
 
