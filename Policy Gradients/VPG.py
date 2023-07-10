@@ -10,37 +10,41 @@ class Net(nn.Module):
 
         self.inp = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.PReLU(),
+            nn.ReLU(),
         )
         self.h1 = torch.nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            nn.PReLU(),
-        )
-        self.h2 = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.PReLU(),
+            nn.ReLU(),
         )
         self.out = nn.Sequential(
             nn.Linear(hidden_dim, output_dim),
         )
 
     def forward(self, x):
-        h = self.inp(x)
-        h = self.h1(h)
-        h = self.h2(h)
-        Z = self.out(h)
+        h1 = self.inp(x)
+        h2 = self.h1(h1)
+        Z = self.out(h2)
         return Z
 
 
-class DQN(Net):
+class PI(Net):
     def __init__(self, state_dim, hidden_dim, action_dim):
-        super(DQN, self).__init__(state_dim, hidden_dim, action_dim)
+        super(PI, self).__init__(state_dim, hidden_dim, action_dim)
 
     def action(self, x):
-        A = Categorical(self.forward(x))
+        logits = self.forward(x)
+        slogits = F.softmax(logits, dim=-1)
+        A = Categorical(slogits)
         act = A.sample()
         log_act = A.log_prob(act)
-        return act, log_act
+        return act.item(), log_act.item()
+
+    def log_prob(self, st, at):
+        logits = self.forward(st)
+        slogits = F.softmax(logits, dim=-1)
+        A = Categorical(slogits)
+        log_act = A.log_prob(at)
+        return log_act
 
 
 env = gym.make("CartPole-v1", render_mode="human")
@@ -56,44 +60,44 @@ I = 32  # iteration count
 M = 32  # episode count
 T = 2000  # max timesteps
 
+policy = PI(sf, 64, an)
+p_optim = optim.Adam(policy.parameters(), lr)
+
 value = Net(sf, 64, 1)
 v_optim = optim.Adam(value.parameters(), lr)
-
-policy = DQN(sf, 64, an)
-p_optim = optim.Adam(policy.parameters(), lr)
 
 
 for k in range(I):
     # Step 1: Collect step of trajectories by running policy
-    D = []
-    for e in range(M):
-        ep = []
-        st, _ = env.reset()
-        st = torch.from_numpy(st)
-        for t in range(T):
-            with torch.no_grad():
+    with torch.no_grad():
+        D = []
+        for e in range(M):
+            ep = []
+            st, _ = env.reset()
+            st = torch.from_numpy(st)
+            for t in range(T):
                 at, log_at = policy.action(st)
-            st1, rt, ter, _, _ = env.step(at)
-            st1 = torch.from_numpy(st1)
-            ep.append([st, at, rt, log_at])
-            if ter:
-                break
-            else:
-                st = st1
+                st1, rt, ter, _, _ = env.step(at)
+                st1 = torch.from_numpy(st1)
+                ep.append([st, at, rt, log_at])
+                if ter:
+                    break
+                else:
+                    st = st1
 
-        # Step 2+3: Compute rewards to go and advantage estimates
-        G = 0
-        for t in range(len(ep) - 1, -1, -1):
-            # Compute rewards to go
-            ep[t][2] += G
-            G = ep[t][2] * gamma
+            # Step 2+3: Compute rewards to go and advantage estimates
+            G = 0
+            for t in range(len(ep) - 1, -1, -1):
+                # Compute rewards to go
+                ep[t][2] += G
+                G = ep[t][2] * gamma
 
-            # Compute advantage estimate
-            with torch.no_grad():
-                A = G - value(ep[t][0])
-            ep[t].append(A)
+                # Compute advantage estimate
+                with torch.no_grad():
+                    A = G - value(ep[t][0])
+                ep[t].append(A)
 
-        D.extend(ep)
+            D.extend(ep)
 
     # Step 4: Estimate policy gradient
     p_optim.zero_grad()
